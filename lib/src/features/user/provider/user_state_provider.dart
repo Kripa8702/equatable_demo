@@ -1,4 +1,4 @@
-import 'package:equatable_demo/src/features/user/data/model/user_model.dart';
+import 'package:equatable_demo/src/features/user/model/user_model.dart';
 import 'package:equatable_demo/src/features/user/provider/user_provider.dart';
 import 'package:riverpod/riverpod.dart';
 

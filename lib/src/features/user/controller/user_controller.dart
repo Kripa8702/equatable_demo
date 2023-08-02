@@ -1,5 +1,5 @@
-import 'package:equatable_demo/src/core/network/constants/endpoints.dart';
-import 'package:equatable_demo/src/core/network/dio_client.dart';
+import 'package:equatable_demo/src/constants/endpoints.dart';
+import 'package:equatable_demo/src/utils/api_client.dart';
 
 class UserApi {
   final DioClient _dioClient;

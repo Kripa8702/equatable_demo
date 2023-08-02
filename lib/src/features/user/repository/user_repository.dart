@@ -1,9 +1,9 @@
 import 'dart:developer';
 
 import 'package:dio/dio.dart';
-import 'package:equatable_demo/src/core/network/dio_exceptions.dart';
-import 'package:equatable_demo/src/features/user/data/api/user_api.dart';
-import 'package:equatable_demo/src/features/user/data/model/user_model.dart';
+import 'package:equatable_demo/src/utils/api_client.dart';
+import 'package:equatable_demo/src/features/user/controller/user_controller.dart';
+import 'package:equatable_demo/src/features/user/model/user_model.dart';
 
 class UserRepository{
   final UserApi userApi;
