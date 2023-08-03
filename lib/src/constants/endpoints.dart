@@ -1,7 +1,7 @@
 class Endpoints{
 
   //controller url
-  static const String userUrl = "https://randomuser.me/controller/?page=1&results=20&seed=abc";
+  static const String userUrl = "https://randomuser.me/api/?page=1&results=20&seed=abc";
 
   // receiveTimeout
   static const Duration receiveTimeout = Duration(seconds: 15000);

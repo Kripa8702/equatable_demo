@@ -1,25 +1,26 @@
 import 'dart:developer';
 
 import 'package:dio/dio.dart';
+import 'package:equatable_demo/src/constants/endpoints.dart';
 import 'package:equatable_demo/src/utils/api_client.dart';
 import 'package:equatable_demo/src/features/user/controller/user_controller.dart';
 import 'package:equatable_demo/src/features/user/model/user_model.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class UserRepository{
-  final UserApi userApi;
+final userRepositoryProvider =
+    Provider((ref) => UserRepository(client: ref.read(apiClientProvider)));
 
-UserRepository(this.userApi);
+class UserRepository {
+  UserRepository({
+    required ApiClient client,
+  }) : _client = client;
 
-Future<List<UserModel>> fetchUserList() async {
-  try {
-    final res = await userApi.fetchUserApiRequest();
+  final ApiClient _client;
+
+  Future<List<UserModel>> fetchUserList() async {
+    final res = await _client.getRequest(Endpoints.userUrl);
     final userModelList =
-    (res['results'] as List).map((e) => UserModel.fromJson(e)).toList();
+        (res['results'] as List).map((e) => UserModel.fromJson(e)).toList();
     return userModelList;
-  } on DioException catch (e) {
-    final errorMessage = DioExceptions.fromDioError(e);
-    log(errorMessage.toString());
-    rethrow;
   }
-}
 }

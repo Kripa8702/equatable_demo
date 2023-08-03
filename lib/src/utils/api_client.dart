@@ -1,219 +1,205 @@
-import 'dart:developer';
+import 'dart:convert';
+import 'dart:io';
 
-import 'package:dio/dio.dart';
-import 'package:equatable_demo/src/constants/endpoints.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
+import 'package:riverpod/riverpod.dart';
+import 'package:http/http.dart' as http;
 
+class UnAuthorizedException implements Exception {
+  final String message;
 
-final dioInstanceProvider = Provider<Dio>((ref){
-  return Dio();
-});
-
-final dioClientProvider = Provider<DioClient>((ref){
-  final _dio = ref.watch(dioInstanceProvider);
-  return DioClient(_dio);
-});
-
-class DioClient {
-  // dio instance
-  final Dio _dio;
-
-  // injecting dio instance
-  DioClient(this._dio) {
-    _dio
-    // ..options.baseUrl = Endpoints.baseUrl
-      ..options.connectTimeout = Endpoints.connectionTimeout
-      ..options.receiveTimeout = Endpoints.receiveTimeout
-      ..options.responseType = ResponseType.json
-      ..interceptors.add(DioInterceptor())
-      ..interceptors.add(LogInterceptor(
-        request: true,
-        requestHeader: true,
-        requestBody: true,
-        responseHeader: true,
-        responseBody: true,
-      ));
-  }
-  // Get:-----------------------------------------------------------------------
-  Future<Response> get(
-      String uri, {
-        Map<String, dynamic>? queryParameters,
-        Options? options,
-        CancelToken? cancelToken,
-        ProgressCallback? onReceiveProgress,
-      }) async {
-    try {
-      final Response response = await _dio.get(
-        uri,
-        queryParameters: queryParameters,
-        options: options,
-        cancelToken: cancelToken,
-        onReceiveProgress: onReceiveProgress,
-      );
-      return response;
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  // Post:----------------------------------------------------------------------
-  Future<Response> post(
-      String uri, {
-        data,
-        Map<String, dynamic>? queryParameters,
-        Options? options,
-        CancelToken? cancelToken,
-        ProgressCallback? onSendProgress,
-        ProgressCallback? onReceiveProgress,
-      }) async {
-    try {
-      final Response response = await _dio.post(
-        uri,
-        data: data,
-        queryParameters: queryParameters,
-        options: options,
-        cancelToken: cancelToken,
-        onSendProgress: onSendProgress,
-        onReceiveProgress: onReceiveProgress,
-      );
-      return response;
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  // Put:-----------------------------------------------------------------------
-  Future<Response> put(
-      String uri, {
-        data,
-        Map<String, dynamic>? queryParameters,
-        Options? options,
-        CancelToken? cancelToken,
-        ProgressCallback? onSendProgress,
-        ProgressCallback? onReceiveProgress,
-      }) async {
-    try {
-      final Response response = await _dio.put(
-        uri,
-        data: data,
-        queryParameters: queryParameters,
-        options: options,
-        cancelToken: cancelToken,
-        onSendProgress: onSendProgress,
-        onReceiveProgress: onReceiveProgress,
-      );
-      return response;
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  // Delete:--------------------------------------------------------------------
-  Future<Response> delete(
-      String uri, {
-        data,
-        Map<String, dynamic>? queryParameters,
-        Options? options,
-        CancelToken? cancelToken,
-        ProgressCallback? onSendProgress,
-        ProgressCallback? onReceiveProgress,
-      }) async {
-    try {
-      final Response response = await _dio.delete(
-        uri,
-        data: data,
-        queryParameters: queryParameters,
-        options: options,
-        cancelToken: cancelToken,
-      );
-      return response;
-    } catch (e) {
-      rethrow;
-    }
-  }
+  UnAuthorizedException(this.message);
 }
 
-class DioExceptions implements Exception {
-  late String message;
+final httpClientProvider = Provider((ref) => http.Client());
 
-  DioExceptions.fromDioError(DioException dioError) {
-    switch (dioError.type) {
-      case DioExceptionType.cancel:
-        message = "Request to API server was cancelled";
-        break;
-      case DioExceptionType.connectionTimeout:
-        message = "Connection timeout with API server";
-        break;
-      case DioExceptionType.receiveTimeout:
-        message = "Receive timeout in connection with API server";
-        break;
-      case DioExceptionType.badResponse:
-        message = _handleError(
-          dioError.response?.statusCode,
-          dioError.response?.data,
-        );
-        break;
-      case DioExceptionType.sendTimeout:
-        message = "Send timeout in connection with API server";
-        break;
-      case DioExceptionType.unknown:
-        if (dioError.message!.contains("SocketException")) {
-          message = 'No Internet';
-          break;
-        } else if (dioError.message!.contains('HandshakeException')) {
-          message = 'Response data not found';
-          break;
-        }
-        message = "Unexpected error occurred";
-        break;
-      default:
-        message = "Something went wrong";
-        break;
+final apiClientProvider =
+    Provider((ref) => ApiClient(client: ref.read(httpClientProvider)));
+
+class ApiClient {
+  final http.Client _client;
+
+  const ApiClient({
+    required http.Client client,
+  }) : _client = client;
+
+  //Headers ---------------------------
+
+  Map<String, String> get _headers {
+    final headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+    return headers;
+  }
+
+  //GET request -----------------------
+
+  Future getRequest(String url) async {
+    try {
+      _print(url);
+      _print(_headers);
+      final response = await _client.get(
+        Uri.parse(url),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 401) {
+        throw UnAuthorizedException(
+            response.reasonPhrase ?? 'Failed to authenticate.');
+      }
+
+      if (response.statusCode == 200) {
+        _print(response.body);
+        return jsonDecode(response.body);
+      }
+      throw Exception(response.reasonPhrase);
+    } on SocketException catch (_) {
+      throw 'No Internet Connection.';
+    } catch (e) {
+      rethrow;
     }
   }
 
-  String _handleError(int? statusCode, dynamic error) {
-    switch (statusCode) {
-      case 400:
-        return error['message'] ?? 'Bad request';
-      case 401:
-        return error['message'] ?? 'Unauthorized';
-      case 403:
-        return error['message'] ?? 'Forbidden';
-      case 404:
-        return error['message'];
-      case 420:
-        return 'Session Expired. Please LogIn again';
-      case 500:
-        return error['message'] ?? 'Internal server error';
-      case 502:
-        return error['message'] ?? 'Server unavailable';
-      default:
-        return 'Oops something went wrong';
+  //POST request -----------------------
+
+  Future<Map<String, dynamic>> postRequest({
+    required String url,
+    required Map<String, dynamic> body,
+  }) async {
+    try {
+      _print(url);
+      _print(body);
+      _print(_headers);
+      final response = await _client.post(
+        Uri.parse(url),
+        body: jsonEncode(body),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 401) {
+        throw UnAuthorizedException(
+            response.reasonPhrase ?? 'Failed to authenticate.');
+      }
+
+      if (response.statusCode == 201 ||
+          response.statusCode == 201 ||
+          response.statusCode == 400 ||
+          response.statusCode == 403) {
+        _print(jsonDecode(response.body));
+        return jsonDecode(response.body);
+      } else {
+        _print(response.reasonPhrase);
+        throw Exception(response.reasonPhrase);
+      }
+    } on SocketException catch (_) {
+      throw 'No Internet Connection.';
     }
   }
 
-  @override
-  String toString() => message;
-}
+  //PUT request -----------------------
 
-class DioInterceptor extends Interceptor {
-  @override
-  void onRequest(
-      RequestOptions options, RequestInterceptorHandler handler) async {
-    log("Request[${options.method}] => PATH: ${options.path}");
-    super.onRequest(options, handler);
+  Future<bool> putRequest({
+    required String uploadUrl,
+    required File file,
+    required String contentType,
+  }) async {
+    try {
+      final response = await http.put(
+        Uri.parse(uploadUrl),
+        body: file.readAsBytesSync(),
+        headers: {
+          'Content-Type': contentType,
+        },
+      );
+
+      if (response.statusCode == 401) {
+        throw UnAuthorizedException(
+            response.reasonPhrase ?? 'Failed to authenticate.');
+      }
+
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        return false;
+      }
+    } on SocketException catch (_) {
+      throw 'No Internet Connection.';
+    } catch (e) {
+      rethrow;
+    }
   }
 
-  @override
-  void onResponse(Response response, ResponseInterceptorHandler handler) {
-    log("Response Status Code: [${response.statusCode}]");
-    super.onResponse(response, handler);
+  //PATCH request -----------------------
+
+  Future<Map<String, dynamic>> patchRequest({
+    required String url,
+    Map<String, dynamic> body = const {},
+  }) async {
+    try {
+      _print(url);
+      _print(body);
+      _print(_headers);
+      final response = await _client.patch(
+        Uri.parse(url),
+        body: jsonEncode(body),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 401) {
+        throw UnAuthorizedException(
+            response.reasonPhrase ?? 'Failed to authenticate.');
+      }
+
+      if (response.statusCode == 201 ||
+          response.statusCode == 200 ||
+          response.statusCode == 400 ||
+          response.statusCode == 403) {
+        _print(jsonDecode(response.body));
+        return jsonDecode(response.body);
+      } else {
+        _print(response.reasonPhrase);
+        throw Exception(response.reasonPhrase);
+      }
+    } on SocketException catch (_) {
+      throw 'No Internet Connection.';
+    }
   }
 
-  @override
-  void onError(DioException err, ErrorInterceptorHandler handler) {
-    log("Error[${err.response?.statusCode}] => PATH: ${err.requestOptions.path}");
-    super.onError(err, handler);
+  //DELETE request -----------------------
+  Future<dynamic> deleteRequest(String url) async {
+    try {
+      _print(url);
+      _print(_headers);
+      final response = await _client.delete(
+        Uri.parse(url),
+        headers: _headers,
+      );
+      if (response.statusCode == 401) {
+        throw UnAuthorizedException(
+            response.reasonPhrase ?? 'Failed to authenticate.');
+      }
+      if (response.statusCode == 200) {
+        _print(response.body);
+        return jsonDecode(response.body);
+      }
+      throw Exception(response.reasonPhrase);
+    } on SocketException catch (_) {
+      throw 'No Internet Connection.';
+    } catch (e) {
+      rethrow;
+    }
   }
+
+
+
+
+
+
+  _print(dynamic text) {
+    if (kDebugMode) {
+      debugPrint(text.toString());
+    }
+  }
+
 }
